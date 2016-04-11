@@ -158,111 +158,103 @@
 когда вызывается его метод `.next()`.
 
 Это действие синхронное и однопоточное. Заметьте, в любой момент времени что-то
-делает только один из персонажей. Персонажи никогда не прерывают и не
+делает только какой-то один из персонажей. Персонажи никогда не прерывают и не
 перекрикивают друг друга. Они говорят по очереди, и кто бы ни говорил, он может
 продолжать столько, сколько хочет. (Точно как у Шекспира!)
 
+И похожая разновидность этой драмы разворачивается всегда, когда генератор
+передаётся в цикл `for`-`of`. Всегда есть последовательность вызовов метода
+`.next()`, которая нигде в вашем коде не указана. Здесь я их сделал явными, но
+для вас и ваших программ, всё это будет происходить за кулисами, потому что
+генераторы и циклы `for`-`of` были разработаны чтобы взаимодейстовать друг
+с другом через [интерфейс итераторов][4].
+
+Итак, подведём промежуточные итоги:
+
+*   Объекты генераторов — вежливые латунные роботы, которые отдают значения;
+*   Программирование каждого такого работа заключается в единственном куске
+    кода — теле функции-генератора, создавшего его.
 
 
-And some version of this drama unfolds each time a generator is fed to a `for`
-`of` loop. There is always this sequence of `.next()` method calls that do not
-appear anywhere in your code. Here I’ve put it all onstage, but for you and your
-programs, all this will happen behind the scenes, because generators and the
-`for`–`of` loop were designed to work together, via [the iterator interface][4]
+## Как выключить генератор
 
-So to summarize everything up to this point:
-
-*   Generator objects are polite brass robots that yield values.
-*   Each robot’s programming consists of a single chunk of code: the body of
-    the generator function that created it.
-   
-
-### How to shut down a generator
-
-Generators have several fiddly extra features that I didn’t cover in part 1:
+У генераторов есть несколько интересных особенностей, о которых я не
+рассказывал в первой части:
 
 *   `generator.return()`
-*   the optional argument to `generator.next()` 
+*   опциональный аргумент у `generator.next()`
 *   `generator.throw(error)`
 *   `yield*`
 
-I skipped them mainly because without understanding *why* those features exist
-, it’s hard to care about them, much less keep them all straight in your head. 
-But as we think more about how our programs will use generators, we’ll see the 
-reasons.
+Я пропустил их в основном из-за того, что без понимания, *почему* эти
+возможности существуют, трудно обращать на них внимание, и ещё труднее сложить
+из них в голове стройную картину. Но по мере того, как мы всё больше понимаем,
+как использовать генераторы в программах, мы увидим, зачем они нужны.
 
-Here’s a pattern you’ve probably used at some point:
+Например, в определённых момент вы, возможно, захотите использовать что-то
+подобное:
 
+    function doThings() {
+      setup();
+      try {
+        // ... что-то делаем ...
+      } finally {
+        cleanup(); // убираем за собой
+      }
+    }
 
-`
-<pre>
-function doThings() {
-  setup();
-  try {
-    // ... do some things ...
-  } finally {
-    cleanup();
-  }
-}
+    doThings();
 
-doThings();
-</pre>
-`
+Уборка может включать в себя закрытие соединений или файлов, освобождение
+системных ресурсов, или просто обращение к DOM с целью выключить спиннер
+«мы ещё в процессе». Мы хотим, чтобы это происходило в независимости от того,
+завершилась ли наша работа успешно, или нет, и для этого используем блок
+`finally`.
 
-The cleanup might involve closing connections or files, freeing system
-resources, or just updating the DOM to turn off an “in progress” spinner. We 
-want this to happen whether our work finishes successfully or not, so it goes in
-a`finally` block.
+Как это будет выглядеть в генераторе?
 
-How would this look in a generator?
+    function* produceValues() {
+      setup();
+      try {
+        // ... отдаём какие-то значения ...
+      } finally {
+        cleanup(); // убираем за собой
+      }
+    }
 
+    for (var value of produceValues()) {
+      work(value);
+    }
 
-`
-<pre>
-function* produceValues() {
-  setup();
-  try {
-    // ... yield some values ...
-  } finally {
-    cleanup();
-  }
-}
+Выглядит нормально. Но есть нюанс: вызов `work(value)` не находится внутри
+блока `try`. Если он бросит исключение, то что произойдёт с этапом уборки?
 
-for (var value of produceValues()) {
-  work(value);
-}
-</pre>
-`
+Или предположим, что цикл `for`-`of` содержит инструкцию `break` или `return`.
+Что тогда произойдёт с уборкой?
 
-This looks all right. But there is a subtle issue here: the call `work(value)`
-isn’t inside the`try` block. If it throws an exception, what happens to our
-cleanup step?
+Она всё равно выполнится. ES6 вас прикроет.
 
-Or suppose the `for`–`of` loop contains a `break` or `return` statement. What
-happens to the cleanup step then?
+Когда мы впервые говорили об [итераторах и цикле `for`-`of`][5], мы упомянули,
+что интерфейс итератора содержит опциональный метод `.return()`, который
+автоматически вызывается языком когда итерация заканчивается, перед тем, как
+итератор сказал, что он закончил. Генераторы поддерживают этот метод. Вызов
+`myGenerator.return()` заставляет генератор выполнить все блоки `finally` и
+выйти, как если бы текущий `yield` таинственным образом превратился в
+инструкцию `return`.
 
-It executes anyway. ES6 has your back.
+Обратите внимание, `.return()` вызывается языком автоматически не во *всех*
+контекстах, а только когда используется протокол итераторов. Поэтому возможна
+ситация, когда генератор уйдёт сборщику мусора, а его блок `finally` так и не
+отработает.
 
-When we first discussed [iterators and the `for`–`of` loop][5], we said the
-iterator interface contains an optional`.return()` method which the language
-automatically calls whenever iteration exits before the iterator says it’s done.
-Generators support this method. Calling`myGenerator.return()` causes the
-generator to run any`finally` blocks and then exit, just as if the current 
-`yield` point had been mysteriously transformed into a `return` statement.
+Как это поведение выглядело бы на сцене? Генератор заморожен посреди задачи,
+которая требует какой-то подготовки, например, строительство небоскрёба.
+Вдруг кто-то бросает ошибку! Цикл `for` ловит её и откладывает в сторону.
+Он говорит генератору: `return()`. Генератор молча разбирает все свои
+строительные леса и выключается. Затем цикл `for` достаёт отложенную ошибку,
+и продолжается обычный процесс обработки ошибки.
 
-Note that the `.return()` is not called automatically by the language in *all*
-contexts, only in cases where the language uses the iteration protocol. So it is
-possible for a generator to be garbage collected without ever running its
-`finally` block.
-
-How would this feature play out on stage? The generator is frozen in the middle
-of a task that requires some setup, like building a skyscraper. Suddenly someone
-throws an error! The`for` loop catches it and sets it aside. She tells the
-generator to`.return()`. The generator calmly dismantles all its scaffolding
-and shuts down. Then the`for` loop picks the error back up, and normal
-exception handling continues.
-
-### Generators in charge
+## Ответственность на генераторах
 
 So far, the conversations we’ve seen between a generator and its user have
 been pretty one-sided. To break with the theater analogy for a second:
