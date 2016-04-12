@@ -30,7 +30,7 @@
 функции-генератора не выполняется всё сразу. Она работает понемногу раз за
 разом, приостанавливая выполнение всякий раз, как достигнет выражения `yield`.
 
-В [первой части][3] было подробное объяснение, но мы так и не рассмотрели ни
+В [первой части][2] было подробное объяснение, но мы так и не рассмотрели ни
 одного примера того, как все эти части взаимодействуют. Давайте этим и займёмся.
 
     function* someWords() {
@@ -254,7 +254,7 @@
 строительные леса и выключается. Затем цикл `for` достаёт отложенную ошибку,
 и продолжается обычный процесс обработки ошибки.
 
-## Ответственность на генераторах
+## Уполномоченные генераторы
 
 То общение между генератором и его пользователем, что мы пока что видели,
 было достаточно односторонним. Отойдём на секунду от аналогии с театром:
@@ -355,7 +355,7 @@
 сможете писать сложные асинхронные алгоритмы используя промисы как
 прямолинейный код, без единого намёка на `.then()` или коллбеки.
 
-## Как аварийно завершить генератор
+## Как сломать генератор
 
 Вы заметили, как функция `runGeneratorOnce` обрабатывает ошибки? Она их
 игнорирует!
@@ -399,85 +399,66 @@
 Управление передаётся функции, которую вы вызвали. Она может вернуть. Она
 может бросить. Или она может зациклиться навсегда.
 
-### Generators working together
+## Совместная работа генераторов
 
-Let me show off one more feature. Suppose we write a simple generator-function
-to concatenate two iterable objects:
+Давайте я покажу вам ещё одну возможность. Предположим, мы пишем простую
+функцию-генератор для конкатенации двух итерируемых объектов:
+
+    function* concat(iter1, iter2) {
+      for (var value of iter1) {
+        yield value;
+      }
+      for (var value of iter2) {
+        yield value;
+      }
+    }
+
+В ES6 для этого есть краткая запись:
+
+    function* concat(iter1, iter2) {
+      yield* iter1;
+      yield* iter2;
+    }
+
+Обычное выражение `yield` отдаёт одно значение, а выражение `yield*` принимает
+итератор целиком и отдаёт *всё* значения.
+
+Этот же синтаксис решает другую занятную проблему: как вызвать генератор из
+генератора. С обычными функциями мы можем сгести в кучу код и вынести его в
+отдельную функцию без изменения поведения. Очевидно, нам также захочется
+рефакторить и генераторы тоже. Но нам придётся как-то вызывать вынесенную
+процедуру и убедиться, что все значения, которые мы отдавали ранее, всё ещё
+отдаются, несмотря на то, что теперь их производит другая процедура.
+`yield*` — это способ добиться этого.
+
+    function* factoredOutChunkOfCode() { ... }
+
+    function* refactoredFunction() {
+      ...
+      yield* factoredOutChunkOfCode();
+      ...
+    }
+
+Представьте, что это один латунный робот делегирует подзадачи другому.
+Теперь вы видите, насколько важна эта идея для написания больших проектов на
+основе генераторов и содержания кода в чистоте и порядке, точно так же, как
+функции важны для организации синхронного кода.
 
 
-`
-<pre>
-function* concat(iter1, iter2) {
-  for (var value of iter1) {
-    yield value;
-  }
-  for (var value of iter2) {
-    yield value;
-  }
-}
-</pre>
-`
+## Занавес
 
-ES6 provides a shorthand for this:
+Что ж, про генераторы это всё! Надеюсь, вам понравилось так же, как и мне.
+Я рад, что вернулся.
 
-
-`
-<pre>
-function* concat(iter1, iter2) {
-  yield* iter1;
-  yield* iter2;
-}
-</pre>` 
-
-A plain `yield` expression yields a single value; a `yield*` expression
-consumes an entire iterator and yields*all* values.
-
-The same syntax also solves another funny problem: the problem of how to call a
-generator from within a generator. In ordinary functions, we can scoop up a 
-bunch of code from one function and refactor it into a separate function, 
-without changing behavior. Obviously we’ll want to refactor generators too. But 
-we’ll need a way to call the factored-out subroutine and make sure that every 
-value we were yielding before is still yielded, even though it’s a subroutine 
-that’s producing those values now.`yield*` is the way to do that.
-
-
-`
-<pre>
-function* factoredOutChunkOfCode() { ... }
-
-function* refactoredFunction() {
-  ...
-  yield* factoredOutChunkOfCode();
-  ...
-}
-</pre>
-`
-
-Think of one brass robot delegating subtasks to another. You can see how
-important this idea is for writing large generator-based projects and keeping 
-the code clean and organized, just as functions are crucial for organizing 
-synchronous code.
-
-### Exeunt
-
-Well, that’s it for generators! I hope you enjoyed that as much as I did, too
-. It’s good to be back.
-
-Next week, we’ll talk about yet another mind-blowing feature that’s totally
-new in ES6, a new kind of object so subtle, so tricky, that you may end up using
-one without even knowing it’s there. Please join us next week for a look at ES6 
-proxies in depth.<section class="about">
-
-[More articles by Jason Orendorff…][8]</section></article>
+На следующей неделе мы поговорим об ещё одной ошеломительной возможности,
+которая также появилась в ES6. О новом виде объектов, настолько неявном и
+настолько хитроумным, что может оказаться, что вы используете его, даже не
+зная об этом. Присоединяйтесь к нам на следующей неделе и мы рассмотрим
+прокси-объекты из ES6 в деталях.
 
  [1]: https://hacks.mozilla.org/category/es6-in-depth/
-
- [2]: https://hacks.mozilla.org/2015/05/es6-in-depth-generators/ "ES6 In Depth: Generators"
- [3]: https://hacks.mozilla.org/2015/05/es6-in-depth-generators/
-
+ [2]: http://frontender.info/es6-in-depth-generators/ "ES6 в деталях: генераторы"
  [4]: http://www.ecma-international.org/ecma-262/6.0/index.html#sec-iterator-interface
-
- [5]: https://hacks.mozilla.org/2015/04/es6-in-depth-iterators-and-the-for-of-loop/
+ [5]: http://frontender.info/es6-in-depth-iterators-and-the-for-of-loop/ "ES6 в деталях: итераторы и циклы for-of"
  [6]: img/generator-messages-small-250x375.png
  [7]: img/generator-messages-2-small-250x375-ru.png
- [8]: https://hacks.mozilla.org/author/jorendorffmozillacom/
