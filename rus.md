@@ -256,32 +256,32 @@
 
 ## Ответственность на генераторах
 
-So far, the conversations we’ve seen between a generator and its user have
-been pretty one-sided. To break with the theater analogy for a second:
+То общение между генератором и его пользователем, что мы пока что видели,
+было достаточно односторонним. Отойдём на секунду от аналогии с театром:
 
+![(Поддельный скриншот сообщений iPhone между генератором и его пользователем, где пользователь лишь говорит раз за разом 'next', а генератор отвечает значениями.)][6]
 
-![(A fake screenshot of iPhone text messages between a generator and its user, with the user just saying 'next' repeatedly and the generator replying with values.)][6]
+Ответственность на пользователе. Генератор лишь работает по запросу. Но это не
+единственный подход к программированию генераторов.
 
-The user is in charge. The generator does its work on demand. But this isn’t
-the only way to program with generators.
+В первой части я говорил, что генераторы могут использоваться для асинхронного
+программирования. То, что вы делаете при помощи асинхронных коллбеков или
+цепочек промисов, можно сделать при помощи генераторов. У вас, наверное,
+возникнет вопрос, как это должно работать. Почему возможности отдавать
+значения (в конце концов, это единственная суперспособность генераторов)
+придаётся такое значение? Ведь асинхронный код не только отдаёт значения.
+Он *заставляет всякие штуки происходить*. Он запрашивает данные из файлов и
+баз данных. Он отправляет серверам запросы. И затем он возвращается к
+событийному циклу и ждёт, пока эти асинхронные процессы не завершатся. Как
+именно генераторы должны это делать? И каким образом без коллбеков генератор
+получит данные из всех этих файлов, баз данных и серверов, когда они придут?
 
-In part 1, I said that generators could be used for asynchronous programming.
-Things you currently do with asynchronous callbacks or promise chaining could be
-done with generators instead. You may have wondered how exactly that is supposed
-to work. Why is the ability to yield (which after all is a generator’s only 
-special power) sufficient? After all, asynchronous code doesn’t just yield. It*
-makes stuff happen.* It calls for data from files and databases. It fires off
-requests to servers. And then it returns to the event loop to wait for those 
-asynchronous processes to finish. How exactly will generators do this? And 
-without callbacks, how does the generator receive data from those files and 
-databases and servers when it comes in?
+Давайте разбираться. Представьте, что бы было, если бы у кода, вызывающего
+`.next()`, был способ передать значение обратно в генератор. Одного этого
+изменения хватило бы для того, чтобы общение качественно изменилось:
 
-To start working toward the answer, consider what would happen if we just had a
-way for the`.next()` caller to pass a value back into the generator. With just
-this one change, we could have a whole new kind of conversation:
+![(Поддельный скриншот сообщений iPhone между генератором и вызывающим кодом. Каждое значение, отдаваемое генератором,— это требование. А вызывающий код отдаёт требуемое в виде аргумена в следующий раз, как вызовет .next().)][7]
 
-
-![(A fake screenshot of iPhone text messages between a generator and its caller; each value the generator yields is an imperious demand, and the caller passes whatever the generator wants as an argument the next time it calls .next().)][7]
 
 And a generator’s `.next()` method does in fact take an optional argument, and
 the clever bit is that the argument then appears to the generator as the value 
@@ -486,5 +486,5 @@ proxies in depth.<section class="about">
 
  [5]: https://hacks.mozilla.org/2015/04/es6-in-depth-iterators-and-the-for-of-loop/
  [6]: img/generator-messages-small-250x375.png
- [7]: img/generator-messages-2-small-250x375.png
+ [7]: img/generator-messages-2-small-250x375-ru.png
  [8]: https://hacks.mozilla.org/author/jorendorffmozillacom/
