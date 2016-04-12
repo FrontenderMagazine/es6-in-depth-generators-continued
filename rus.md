@@ -282,129 +282,122 @@
 
 ![(Поддельный скриншот сообщений iPhone между генератором и вызывающим кодом. Каждое значение, отдаваемое генератором,— это требование. А вызывающий код отдаёт требуемое в виде аргумена в следующий раз, как вызовет .next().)][7]
 
-
-And a generator’s `.next()` method does in fact take an optional argument, and
-the clever bit is that the argument then appears to the generator as the value 
-returned by the`yield` expression. That is, `yield` isn’t a statement like 
-`return`; it’s an expression that has a value, once the generator resumes.
+И метод генераторов `.next()` в самом деле принимает опциональный аргумент,
+и есть одна хитрость: этот аргумент для генератора выглядит как значение,
+возвращаемое выражением `yield`. То есть, `yield` — это не инструкция вроде
+`return`, это выражение, которое получает значение как только генератор
+возобновляет работу.
 
     var results = yield getDataAndLatte(request.areaCode);
-    
 
-This does a lot of things for a single line of code:
+Для одной строчки кода тут происходит много всего:
 
-*   It calls `getDataAndLatte()`. Let’s say that function returns the string 
-    `"get me the database records for area code..."` that we saw in the
-    screenshot.
-   
-*   It pauses the generator, yielding the string value.
-*   At this point, any amount of time could pass.
-*   Eventually, someone calls `.next({data: ..., coffee: ...})`. We store that
-    object in the local variable
-   `results` and continue on the next line of code.
+*   Она вызывает `getDataAndLatte()`. Будем считать, что та функция возвращает
+    строку `"дай мне записи базы данных для области..."`, которую мы видели на
+    скриншоте.
 
-To show that in context, here’s code for the entire conversation shown above:
+*   Она приостанавливает генератор, отдавая строковое значение.
+*   В этом месте может пройти любое количество времени.
+*   В определённый момент кто-либо вызывает `.next({data: ..., coffee: ...})`.
+    Мы сохраняем этот объект в локальную переменную `results` и продолжаем
+    со следующей строчки.
 
+Добавим контекста, вот код для всего разговора с картинки выше:
 
-`
-<pre>
-function* handle(request) {
-  var results = yield getDataAndLatte(request.areaCode);
-  results.coffee.drink();
-  var target = mostUrgentRecord(results.data);
-  yield updateStatus(target.id, "ready");
-}
-</pre>
-`
+    function* handle(request) {
+      var results = yield getDataAndLatte(request.areaCode);
+      results.coffee.drink();
+      var target = mostUrgentRecord(results.data);
+      yield updateStatus(target.id, "ready");
+    }
 
-Note how `yield` still just means exactly what it meant before: pause the
-generator and pass a value back to the caller. But how things have changed! This
-generator expects very specific supportive behavior from its caller. It seems to
-expect the caller to act like an administrative assistant.
+Заметьте, `yield` всё ещё обозначает то же самое, что обозначал раньше:
+поставить генератор на паузу и передать значение обратно вызывающему коду. Но
+теперь всё изменилось! Этот генератор ожидает вполне определённого поведения
+от вызывающего кода — чтобы тот оказывал ему поддержку. Будто бы он ожидает,
+что вызывающий код примет на себя обязанности секретаря.
 
-Ordinary functions are not usually like that. They tend to exist to serve their
-caller’s needs. But generators are code you can have a conversation with, and 
-that makes for a wider range of possible relationships between generators and 
-their callers.
+Обычные функции как правило себя так не ведут. Они скорее существуют, чтобы
+удовлетворять нужды вызывающего кода. Но генераторы — это код, с которым можно
+вести диалог, и это ведёт к тому, что взаимоотношения между генераторами и
+их вызывающим кодом могут быть более разнообразными.
 
-What might this administrative assistant generator-runner look like? It doesn
-’t have to be all that complicated. It might look like this.
+Как может выглядеть этот секретарь-вызыватель генераторов? Совсем не
+обязательно, что прямо уж так сложно. Например, он может выглядеть так:
 
+    function runGeneratorOnce(g, result) {
+      var status = g.next(result);
+      if (status.done) {
+        return;  // фу-уф!
+      }
 
-`
-<pre>
-function runGeneratorOnce(g, result) {
-  var status = g.next(result);
-  if (status.done) {
-    return;  // phew!
-  }
+      // Генератор попросил нас раздобыть что-то и
+      // вызвать его, когда всё будет готово
+      doAsynchronousWorkIncludingEspressoMachineOperations(
+        status.value,
+        (error, nextResult) => runGeneratorOnce(g, nextResult));
+    }
 
-  // The generator has asked us to fetch something and
-  // call it back when we're done.
-  doAsynchronousWorkIncludingEspressoMachineOperations(
-    status.value,
-    (error, nextResult) => runGeneratorOnce(g, nextResult));
-}
-</pre>
-`
-
-To get the ball rolling, we would have to create a generator and run it once,
-like this:
+Чтобы запустить процесс, мы создаём генератор и один раз его вызываем,
+вот так:
 
     runGeneratorOnce(handle(request), undefined);
-    
 
-In May, I mentioned `Q.async()` as an example of a library that treats
-generators as asynchronous processes and automatically runs them as needed.
-`runGeneratorOnce` is that sort of thing. In practice, generator will not yield
-strings spelling out what they need the caller to do. They will probably yield 
-Promise objects.
+В мае я упоминал `Q.async()` в качестве примера библиотеки, которая
+рассматривает генераторы как асинхронные процессы и автоматически запускает их
+по необходимости. `runGeneratorOnce` примерно такая же штука. На практике
+генераторы не будут отдавать строки с указаниями вызывающему коду, что ему
+делать. Скорее они будут отдавать объекты-промисы.
 
-If you already understand promises, and now you understand generators, you
-might want to try modifying`runGeneratorOnce` to support promises. It’s a
-difficult exercise, but once you’re done, you’ll be able to write complex 
-asynchronous algorithms using promises as straight-line code, not a`.then()` or
-a callback in sight.
+Если вы уже умеете работать с промисами и поняли, как работают генераторы,
+возможно вы захотите попробовать изменить `runGeneratorOnce` и добавить
+поддержку промисов. Это трудная задача, но когда вы с ней справитесь, вы
+сможете писать сложные асинхронные алгоритмы используя промисы как
+прямолинейный код, без единого намёка на `.then()` или коллбеки.
 
-### How to blow up a generator
+## Как аварийно завершить генератор
 
-Did you notice how `runGeneratorOnce` handles errors? It ignores them!
+Вы заметили, как функция `runGeneratorOnce` обрабатывает ошибки? Она их
+игнорирует!
 
-Well, that’s not good. We would really like to report the error to the
-generator somehow. And generators support this too: you can call
-`generator.throw(error)` rather than `generator.next(result)`. This causes the
-`yield` expression to throw. Like `.return()`, the generator will typically be
-killed, but if the current yield point is in a`try` block, then `catch` and 
-`finally` blocks are honored, so the generator may recover.
+Так дело не пойдёт. Нам бы очень хотелось каким-то образом сообщать генератору
+об ошибках. И генераторы имеют и такую возможность тоже: можно вызывать
+`generator.throw(ошибка)` вместо `generator.next(результат)`. Это приведёт к
+тому, что выражение `yield` бросит ошибку. Как и в случае с `.return()`,
+обычно это убьёт генератор. Но если текущая точка `yield` находится внутри
+блока `try`, то сработают блоки `catch` и `fianlly`, и генератор может
+вернуться в строй.
 
-Modifying `runGeneratorOnce` to make sure `.throw()` gets called appropriately
-is another great exercise. Keep in mind that exceptions thrown inside generators
-are always propagated to the caller. So`generator.throw(error)` will throw 
-`error` right back at you unless the generator catches it!
+Изменить `runGeneratorOnce` так, чтобы в случае необходимости вызывался
+метод `.throw()` — это ещё одно отличное упражнение. Имейте в виду,
+исключения, брошенные внутри генератора, всегда передаются вызывающему коду.
+Так что `generator.throw(ошибка)` кинется ошибкой прямо в вас, если генератор
+её не перехватит!
 
-This completes the set of possibilities when a generator reaches a `yield`
-expression and pauses:
+Это завершает список возможных вещей, которые могут произойти после того, как
+генератор достигнет выражения `yield` и приостановится:
 
-*   Someone may call `generator.next(value)`. In this case, the generator
-    resumes execution right where it left off.
-   
-*   Someone may call `generator.return()`, optionally passing a value. In this
-    case, the generator does not resume whatever it was doing. It executes
-   `finally` blocks only.
-*   Someone may call `generator.throw(error)`. The generator behaves as if the
-   `yield` expression were a call to a function that threw `error`.
-*   Or, maybe nobody will do any of those things. The generator might stay
-    frozen forever. (Yes, it is possible for a generator to enter a
-   `try` block and simply *never* execute the `finally` block. A generator can
-    even be reclaimed by the garbage collector while it’s in this state.
-    )
+*   Кто-то может вызвать `generator.next(значение)`. В этом случае генератор
+    возобновит работу с того места, где остановился.
 
-This is not much more complicated than a plain old function call. Only 
-`.return()` is really a new possibility.
+*   Кто-то может вызвать `generator.return()`, опционально передав значение.
+    В этом случае генератор не станет продолжать работу. Он выполнит только
+    блоки `finally`.
 
-In fact, `yield` has a lot in common with function calls. When you call a
-function, you’re temporarily paused, right? The function you called is in 
-control. It might return. It might throw. Or it might just loop forever.
+*   Кто-то может вызвать `generator.throw(ошибка)`. Генератор поведёт себя
+    так, как если бы выражение `yield` было вызовом функции, бросившей ошибку.
+
+*   Или, возможно, не произойдёт ничего из этого. Генератор может остаться
+    замороженным навсегда. (Да, возможна ситуация, когда генератор войдёт в
+    блок `try` и просто *никогда* не выполнит блок `finally`. Его даже может
+    забрать сборщик мусора, пока он в таком состоянии.)
+
+Всё это ненамного сложнее старых обычных вызовов функций. Действительно новая возможность — это только `.return()`.
+
+Вообще говоря, у `yield` есть много сходств с обычными вызовами функций.
+когда вы вызываете функцию, вы временно становитесь на паузу, верно?
+Управление передаётся функции, которую вы вызвали. Она может вернуть. Она
+может бросить. Или она может зациклиться навсегда.
 
 ### Generators working together
 
